@@ -22,7 +22,9 @@ def HMA(src:pl.Series, period:int):
     wma_half = WMA(src, period // 2)
     wma_full = WMA(src, period)
     hma_input = 2 * wma_half - wma_full
+    # polars doesnt support rolling window with nulls in them so we have to remove the nulls first
     hma = WMA(hma_input[period-1:], int(period**0.5))
+    # and then add them back so that the length of the series is the same as the input
     res = pl.select(pl.repeat(None, period-1, dtype=pl.Float64)).to_series()
     res.append(hma)
     return res
@@ -52,13 +54,15 @@ def TEMA(src:pl.Series, alpha:float = 0.5, period:int=None):
     ema3 = EMA(ema2, alpha=alpha)
     return 3 * ema1 - 3 * ema2 + ema3
 
-# Weighted Exponential Moving Average
-def WEMA(src:pl.Series, period1:int, alpha:float = 0.5, period2:int = None):
-    if period2:
-        wma_alpha = 2 / (period2 + 1)
-    return EMA(WMA(src, period1), alpha=wma_alpha)
+# # Weighted Exponential Moving Average? was mentioned somewhere on the interwebs with no code
+# # author: ???
+# # implemented as the name indicated, did not really improve on anythin or add anything new
+# def WEMA(src:pl.Series, period1:int, alpha:float = 0.5, period2:int = None):
+#     if period2:
+#         wma_alpha = 2 / (period2 + 1)
+#     return EMA(WMA(src, period1), alpha=wma_alpha)
 
-# Hull Weighted Exponential Moving Average, a zero lag MA
+# Hull Weighted Exponential Moving Average, a supposed zero lag MA but actually not really unless the original code is wrong
 # based on the HMA
 # https://github.com/senghansun/Hull-WEMA
 def HullWEMA(src:pl.Series, period1:int, alpha:float = 0.5, period2:int = None):
