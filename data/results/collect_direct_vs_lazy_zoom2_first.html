@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    #vis.vega-embed {
+      width: 100%;
+      display: flex;
+    }
+
+    #vis.vega-embed details,
+    #vis.vega-embed details summary {
+      position: relative;
+    }
+  </style>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vega-lite@5.20.1"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+</head>
+<body>
+  <div id="vis"></div>
+  <script>
+    (function(vegaEmbed) {
+      var spec = {"config": {"view": {"continuousWidth": 300, "continuousHeight": 300}}, "layer": [{"mark": {"type": "line", "interpolate": "basis"}, "encoding": {"color": {"field": "function", "type": "nominal"}, "x": {"field": "sampling_size", "title": "Number of Parquet files read", "type": "quantitative"}, "y": {"field": "avg_exec_time", "title": "Avg execution time (s)", "type": "quantitative"}}}, {"mark": {"type": "point"}, "encoding": {"opacity": {"value": 0}, "x": {"field": "sampling_size", "type": "quantitative"}}, "name": "view_8"}, {"mark": {"type": "point"}, "encoding": {"color": {"field": "function", "type": "nominal"}, "opacity": {"condition": [{"param": "param_8", "value": 1, "empty": false}], "value": 0}, "x": {"field": "sampling_size", "title": "Number of Parquet files read", "type": "quantitative"}, "y": {"field": "avg_exec_time", "title": "Avg execution time (s)", "type": "quantitative"}}}, {"mark": {"type": "rule", "color": "gray"}, "encoding": {"x": {"field": "sampling_size", "type": "quantitative"}}, "transform": [{"filter": {"param": "param_8", "empty": false}}]}, {"mark": {"type": "text", "align": "left", "dx": 5, "dy": -10}, "encoding": {"color": {"field": "function", "type": "nominal"}, "text": {"condition": {"param": "param_8", "empty": false, "field": "avg_exec_time", "type": "quantitative"}, "value": " "}, "x": {"field": "sampling_size", "title": "Number of Parquet files read", "type": "quantitative"}, "y": {"field": "avg_exec_time", "title": "Avg execution time (s)", "type": "quantitative"}}}], "data": {"name": "data-415c7da6b6de90cfbf129b5aced111f5"}, "height": 300, "params": [{"name": "param_8", "select": {"type": "point", "fields": ["sampling_size"], "nearest": true, "on": "pointerover"}, "views": ["view_8"]}], "title": "Performance of naive lazy vs direct data collection", "width": 600, "$schema": "https://vega.github.io/schema/vega-lite/v5.20.1.json", "datasets": {"data-415c7da6b6de90cfbf129b5aced111f5": [{"function": "collect_lazy", "sampling_size": 17, "avg_exec_time": 0.01}, {"function": "collect_direct", "sampling_size": 17, "avg_exec_time": 0.04}, {"function": "collect_lazy", "sampling_size": 34, "avg_exec_time": 0.01}, {"function": "collect_direct", "sampling_size": 34, "avg_exec_time": 0.1}, {"function": "collect_lazy", "sampling_size": 51, "avg_exec_time": 0.02}, {"function": "collect_direct", "sampling_size": 51, "avg_exec_time": 0.12}, {"function": "collect_lazy", "sampling_size": 68, "avg_exec_time": 0.02}, {"function": "collect_direct", "sampling_size": 68, "avg_exec_time": 0.14}, {"function": "collect_lazy", "sampling_size": 103, "avg_exec_time": 0.04}, {"function": "collect_direct", "sampling_size": 103, "avg_exec_time": 0.23}, {"function": "collect_lazy", "sampling_size": 154, "avg_exec_time": 0.06}, {"function": "collect_direct", "sampling_size": 154, "avg_exec_time": 0.35}, {"function": "collect_lazy", "sampling_size": 239, "avg_exec_time": 0.1}, {"function": "collect_direct", "sampling_size": 239, "avg_exec_time": 0.53}, {"function": "collect_lazy", "sampling_size": 376, "avg_exec_time": 0.17}, {"function": "collect_direct", "sampling_size": 376, "avg_exec_time": 0.87}]}};
+      var embedOpt = {"mode": "vega-lite"};
+
+      function showError(el, error){
+          el.innerHTML = ('<div style="color:red;">'
+                          + '<p>JavaScript Error: ' + error.message + '</p>'
+                          + "<p>This usually means there's a typo in your chart specification. "
+                          + "See the javascript console for the full traceback.</p>"
+                          + '</div>');
+          throw error;
+      }
+      const el = document.getElementById('vis');
+      vegaEmbed("#vis", spec, embedOpt)
+        .catch(error => showError(el, error));
+    })(vegaEmbed);
+
+  </script>
+</body>
+</html>

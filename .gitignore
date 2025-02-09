@@ -1,10 +1,15 @@
 *.parquet
 *.html
 *.csv
+*.png
+
 # Include HTML, PNG, and CSV files in the data/result folder
-!data/result/*.html
-!data/result/*.png
-!data/result/*.csv
+!data/
+!data/results/
+!data/results/*.html
+!data/results/*.png
+!data/results/*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
