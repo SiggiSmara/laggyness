@@ -487,13 +487,31 @@ def test_find_data():
     res_name = "selection_direct_vs_lazy"
     res_df = pl.DataFrame(res)
     res_df.write_csv(result_path / f"{res_name}.csv")
+    res_df_zoom1 = res_df.filter(pl.col("sampling_size") < 3000)
+    res_df_zoom2 = res_df.filter(pl.col("sampling_size") < 500)
     my_plots = {
         "final":{
             "df":res_df,
             "title":"",
         },
+        "final_zoom1":{
+            "df":res_df_zoom1,
+            "title":"",
+        },
+        "final_zoom2":{
+            "df":res_df_zoom2,
+            "title":"",
+        },
         "initial":{
             "df":res_df.filter(pl.col("function").is_in(["find_lazy","find_direct"])),
+            "title":" naive",
+        },
+        "initial_zoom1":{
+            "df":res_df_zoom1.filter(pl.col("function").is_in(["find_lazy","find_direct"])),
+            "title":" naive",
+        },
+        "initial_zoom2":{
+            "df":res_df_zoom2.filter(pl.col("function").is_in(["find_lazy","find_direct"])),
             "title":" naive",
         },
     }
@@ -501,6 +519,7 @@ def test_find_data():
         res_plot = plot_results(source=my_plots[one_plot]["df"], title=f"Performance of{my_plots[one_plot]['title']} lazy vs direct data selection")
         res_plot.save(result_path / f"{res_name}_{one_plot}.png")
         res_plot.save(result_path / f"{res_name}_{one_plot}.html")
+        res_plot.save(result_path / f"{res_name}_{one_plot}.json")
 
     # res_plot = plot_results(source=res_df, title="Performance of lazy vs direct data selection")
     # res_plot.save(result_path / f"{res_name}_final.png")
@@ -595,8 +614,10 @@ def test_collect_data():
         res_plot = plot_results(source=my_plots[one_plot]["df"], title=f"Performance of{my_plots[one_plot]['title']} lazy vs direct data collection")
         res_plot.save(result_path / f"{res_name}_{one_plot}.png")
         res_plot.save(result_path / f"{res_name}_{one_plot}.html")
+        res_plot.save(result_path / f"{res_name}_{one_plot}.json")
 
 
 
+# generate the data
 test_find_data()
-# test_collect_data()
+test_collect_data()
