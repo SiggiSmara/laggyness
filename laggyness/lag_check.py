@@ -9,6 +9,16 @@ import matplotlib.pyplot as plt
 import csv
 
 from smoothers.moving_averages import SMA, WMA, EMA, HMA, EHMA, HullWEMA, TEMA #WEMA, 
+from common import (
+    clear_intermediates, 
+    get_random_subset,
+    simple_smoothers,
+    periods,
+    data_path,
+    image_path,
+    result_path,
+    intermediate_path,
+)
 
 # Mean absolute scaled error, https://en.wikipedia.org/wiki/Mean_absolute_scaled_error
 def mase(*, orig:pl.Series, smoothed:pl.Series):
@@ -80,15 +90,6 @@ def save_long_inmem(*, df_sink:pl.DataFrame, ticker:str) -> None:
 def save_long_dic(*, dict_sink:dict, ticker:str) -> None:
     df_sink = pl.DataFrame(dict_sink)
     df_sink.write_parquet(intermediate_path / f"{ticker}.parquet")
-
-def clear_intermediates():
-    imgs = image_path.glob("*.png")
-    for img in imgs:
-        img.unlink()
-    smalls = intermediate_path.glob("*.parquet")
-    for small in smalls:
-        if small.stem != "all_smoothed":
-            small.unlink()
 
 def plot_outlier(*, q:pl.LazyFrame) -> None:
     df = q.collect()
@@ -176,9 +177,11 @@ def plot_histogram_overview(*, df_hist:pl.DataFrame, sm1:str, sm2:str, period:in
 
     fig, axs = plt.subplots(ncols=2, figsize=(15,13))
     axs[0].hist(df_hist["slope"], bins=100)
+    # axs[0].hist([x["slope"] for x in df_hist], bins=100)
     axs[0].set_title("slope", fontsize=font_size)
 
     axs[1].hist(df_hist["intercept"], bins=50)
+    # axs[1].hist([x["intercept"] for x in df_hist], bins=50)
     axs[1].set_title("intercept", fontsize=font_size)
 
     # Set the overall title
@@ -194,30 +197,9 @@ def plot_histogram_overview(*, df_hist:pl.DataFrame, sm1:str, sm2:str, period:in
     fig.savefig(my_path)
     plt.close(fig)
 
-# set up some path constants
-my_path = Path(__file__).parent.parent
-data_path = my_path / "data" / "stocks_1d"
-image_path = my_path / "data" / "images"
-result_path = my_path / "data" / "results"
-intermediate_path = my_path / "data" / "intermediate"
-
-# get list of all tickers
-tickers = [ x for x in data_path.glob("*.parquet")]
 
 # get a random sample of tickers
-rng = np.random.default_rng()
-sampling_perc = 0.25
-sample_tickers = rng.choice(tickers, round(sampling_perc*len(tickers)), replace=False)
-
-# define the smoothers to be tested
-simple_smoothers = {"SMA":SMA, "WMA":WMA, "EMA":EMA, "HMA":HMA, "EHMA":EHMA, "TEMA":TEMA }
-# simple_smoothers = {"SMA":SMA, }
-complex_smoothers = {"HullWEMA":HullWEMA, } # "WEMA":WEMA, 
-
-# define the smoothing periods to be tested
-periods = [5, 10, 20, 40, 80, 160]
-# periods = [20,]
-
+sample_tickers = get_random_subset(sampling_ratio=0.025)
 
 # define some inital variables and values
 t_start = time()
@@ -233,7 +215,6 @@ trading_days_included = []
 clear_intermediates()
 
 
-first_pass = True
 for ticker in track(sample_tickers, description="Smoothing tickers ..."):
     # read the data directly into a dataframe
     # orig = pl.read_parquet(ticker).get_column("close")
@@ -445,6 +426,7 @@ for ticker, sm_df in smooth_data.items():
         .select("original")
     )
 
+t_comp_start = time()
 for sm1, sm2 in smoother_combis:
     for period in track(periods, description=f"Comparing {sm1} vs {sm2} ..."):
         # initialize the final dataframe for the scatter plot for the period
@@ -479,24 +461,26 @@ for sm1, sm2 in smoother_combis:
             scaled_df = scaled_df.select((pl.all()-pl.all().min()) / (pl.all().max()-pl.all().min()))
             
             # do linear regression to find outliers
-            coeffs = scaled_df.select(
+            cfs = scaled_df.select(
                 pl.col(sm2)
                 .least_squares.ols(pl.col(sm1), add_intercept=True, mode="coefficients")
-                .alias("coefficients")
-            ).unnest("coefficients")
-            cfs = coeffs.row(0)
+                .alias("coeffs")
+            ).unnest(
+                "coeffs"
+            ).row(0)
+
 
             # check if the regression was successful
-            if cfs[0] is not None:
-                # add the slope and intercept to the list of results
-                smoother_corrs.append({"ticker":ticker, "slope":cfs[0], "intercept":cfs[1]})
+            # if cfs[0] is not None:
+            # check for (arbitrarily thresholded) extreme outliers
+            # if (abs(1 - cfs[0]) > 0.2 or abs(cfs[1]) > 0.2): 
+            #     df_outlier = pl.concat([q, origs[ticker]], how="horizontal")
 
-                # check for (arbitrarily thresholded) extreme outliers
-                if (abs(1 - cfs[0]) > 0.2 or abs(cfs[1]) > 0.2): 
-                    df_outlier = pl.concat([q, origs[ticker]], how="horizontal")
+            #     # send the lazyframe to a function that will plot the outlier data
+            #     plot_outlier(q=df_outlier)
 
-                    # send the lazyframe to a function that will plot the outlier data
-                    plot_outlier(q=df_outlier)
+            # add the slope and intercept to the list of results
+            smoother_corrs.append({"ticker":ticker, "slope":cfs[0], "intercept":cfs[1]})
 
             # collect the scaled data for a summary plot
             final_df = pl.concat([scaled_df.select(pl.col([sm1,sm2])), final_df])
@@ -507,6 +491,7 @@ for sm1, sm2 in smoother_combis:
 
         # second plot, histograms of the slopes and intercepts
         plot_histogram_overview(df_hist=pl.DataFrame(smoother_corrs), sm1=sm1, sm2=sm2, period=period)
+        
 
 
 t_end = time()
@@ -518,9 +503,9 @@ print("".join([
     f"with the average trading days being {round(sum(trading_days_included)/len(trading_days_included),2)}\n",
     f"Initial smoothing of the data for each ticker, for {len(periods)} windows of smoothing and {len(simple_smoothers)} number of moving averages ",
     f"for total smoothing operations of {round(tot_smoothers,2)}\n"
-     f"took {round(t_smoothend - t_start, 2)} seconds or {round(1000 *(t_smoothend - t_start) / tot_smoothers, 2 )} sec/1000 moving averages\n",
-    f"Comparing {len(smoother_combis)} combinations of smoothers ",
+     f"took {round(t_smoothend - t_start, 2)} seconds or {round(1000 * (t_smoothend - t_start)/tot_smoothers, 2 )} sec/1000 moving averages\n",
+    f"pairwise comparing {len(smoother_combis)} smoothers ",
     f"and {len(periods)} windows of smoothing, for a total of {tot_combis} comparisons\n",
-    f"took: {round(t_end - t_smoothend, 2)} seconds or { round(1000 * (t_end - t_smoothend)/tot_combis, 2)} sec/1000 comparison\n",
+    f"took: {round(t_end - t_comp_start, 2)} seconds or { round(1000 * (t_end - t_comp_start)/tot_combis, 2)} sec/1000 comparison\n",
     ])
 )

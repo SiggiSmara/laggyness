@@ -1,16 +1,16 @@
 import polars as pl
 
 # Simple Moving Average
-def SMA(src:pl.Series, period:int):
+def SMA(src:pl.Series, period:int) -> pl.Series:
     return src.rolling_mean(window_size=period)
 
 # Weighted Moving Average
-def WMA(src:pl.Series, period:int):
+def WMA(src:pl.Series, period:int) -> pl.Series:
     weights = pl.Series([i+1 for i in range(period)])
     return src.rolling_mean(window_size=period, weights=weights)
 
 # Exponential Moving Average
-def EMA(src:pl.Series, alpha:float=0.5, period:int=None):
+def EMA(src:pl.Series, alpha:float=0.5, period:int=None) -> pl.Series:
     if period:
         alpha = 2 / (period + 1)
     return src.ewm_mean(alpha=alpha)
@@ -18,7 +18,7 @@ def EMA(src:pl.Series, alpha:float=0.5, period:int=None):
 # Hull Moving Average, from one of the greats, ALan Hull.  
 # A zero lag MA
 # https://alanhull.com/hull-moving-average
-def HMA(src:pl.Series, period:int):
+def HMA(src:pl.Series, period:int) -> pl.Series:
     wma_half = WMA(src, period // 2)
     wma_full = WMA(src, period)
     hma_input = 2 * wma_half - wma_full
@@ -31,7 +31,7 @@ def HMA(src:pl.Series, period:int):
 
 # Exponential HMA, same as HMA but with EMA instead of WMA
 # author: ???
-def EHMA(src:pl.Series, period:int):
+def EHMA(src:pl.Series, period:int) -> pl.Series:
     alpha =  2 / (period + 1)
     alpha2 = 2 / (period // 2 + 1)
     alpha3 = 2 / (int(period**0.5) + 1)
@@ -46,7 +46,7 @@ def EHMA(src:pl.Series, period:int):
 # TEMA - Triple Exponential Moving Average, a zero lag MA
 # author: Patrick Mulloy 
 # https://www.tradingtechnologies.com/xtrader-help/x-study/technical-indicator-definitions/triple-exponential-moving-average-tema/
-def TEMA(src:pl.Series, alpha:float = 0.5, period:int=None):
+def TEMA(src:pl.Series, alpha:float = 0.5, period:int=None) -> pl.Series:
     if period:
         alpha = 2 / (period + 1)
     ema1 = EMA(src, alpha=alpha)
@@ -65,7 +65,7 @@ def TEMA(src:pl.Series, alpha:float = 0.5, period:int=None):
 # Hull Weighted Exponential Moving Average, a supposed zero lag MA but actually not really unless the original code is wrong
 # based on the HMA
 # https://github.com/senghansun/Hull-WEMA
-def HullWEMA(src:pl.Series, period1:int, alpha:float = 0.5, period2:int = None):
+def HullWEMA(src:pl.Series, period1:int, alpha:float = 0.5, period2:int = None) -> pl.Series:
     if period2:
         wema_alpha = 2 / (period2 + 1)
     return EMA(HMA(src, period1), alpha=wema_alpha)
