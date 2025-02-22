@@ -472,17 +472,6 @@ def test_find_data():
             get_func = measure_execution_time(func=funcs[func], sample_tickers=samps, no=no)
             print(f"{func}, {no} calls, sampling ratio {round(samp_ratio2,3)} ({round(samp_ratio2 * len_tickers)}): {get_func:.3f} s")
             res.append(create_one_res(func=func, sampling_ratio=samp_ratio2, avg_exec_time=get_func))
-        # get_direct = measure_execution_time(func=find_data_direct, sample_tickers=samps, no= no)
-        # get_lazy = measure_execution_time(func=find_data_lazy, sample_tickers=samps, no=no)
-        # get_alllazy = measure_execution_time(func=find_data_all_lazy, sample_tickers=samps, no=no)
-
-        # print(f"find_data_direct, {no} calls, sampling ratio {samp_ratio2} ({round(samp_ratio2 * len_tickers)}): {get_direct * 1000:.1f} ms")
-        # print(f"find_data_lazy, {no} calls, sampling ratio {samp_ratio2} ({round(samp_ratio2 * len_tickers)}): {get_lazy * 1000:.1f} ms")
-        # print(f"find_data_lazy, {no} calls, sampling ratio {samp_ratio2} ({round(samp_ratio2 * len_tickers)}): {get_alllazy * 1000:.1f} ms")
-
-        # res.append(create_one_res(func="direct", sampling_ratio=samp_ratio2, avg_exec_time=get_direct * 1))
-        # res.append(create_one_res(func="lazy", sampling_ratio=samp_ratio2, avg_exec_time=get_lazy * 1))
-        # res.append(create_one_res(func="all_lazy", sampling_ratio=samp_ratio2, avg_exec_time=get_alllazy * 1))
 
     res_name = "selection_direct_vs_lazy"
     res_df = pl.DataFrame(res)
@@ -521,12 +510,7 @@ def test_find_data():
         res_plot.save(result_path / f"{res_name}_{one_plot}.html")
         res_plot.save(result_path / f"{res_name}_{one_plot}.json")
 
-    # res_plot = plot_results(source=res_df, title="Performance of lazy vs direct data selection")
-    # res_plot.save(result_path / f"{res_name}_final.png")
-    # res_plot.save(result_path / f"{res_name}_final.html")
-    # res_plot = plot_results(source=res_df.filter(pl.col("func") != "all_lazy"), title="Performance of naive lazy vs direct data selection")
-    # res_plot.save(result_path / f"{res_name}_initial.png")
-    # res_plot.save(result_path / f"{res_name}_initial.html")
+   
 
 def test_collect_data():
     res = []

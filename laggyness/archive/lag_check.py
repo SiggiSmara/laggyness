@@ -7,11 +7,13 @@ from rich.progress import track
 import altair as alt
 import matplotlib.pyplot as plt
 import csv
+from typing import List,Tuple
 
 from smoothers.moving_averages import SMA, WMA, EMA, HMA, EHMA, HullWEMA, TEMA #WEMA, 
 from common import (
     clear_intermediates, 
     get_random_subset,
+    find_data_all_lazy,
     simple_smoothers,
     periods,
     data_path,
@@ -20,23 +22,31 @@ from common import (
     intermediate_path,
 )
 
+
 # Mean absolute scaled error, https://en.wikipedia.org/wiki/Mean_absolute_scaled_error
 def mase(*, orig:pl.Series, smoothed:pl.Series):
     diff = orig - smoothed
     mase = (diff.abs() / (orig.diff().abs().mean())).mean()
     return mase
 
-# remove nulls at the start of the smoothed series
-def align(*, orig:pl.Series, smoothed:pl.Series):
-    smoothed_new = smoothed.drop_nulls()
-    orig_new = orig[len(orig) - len(smoothed_new):]
-    return orig_new, smoothed_new, len(orig) - len(smoothed_new)
+def lazy_mase(*, lazy_df:pl.LazyFrame, mean:float):
+    # mean = lazy_df.select("original").collect().get_column("original").diff().abs().mean()
+    mase = lazy_df.with_columns(
+        diff = (pl.col("original") - pl.col("smoothed")).abs() / mean
+    ).select("diff").collect().get_column("diff").mean()
+    return mase
 
 # shift the smoothed series n periods into the past
 def shift(*, orig:pl.Series, smoothed:pl.Series, n:int=1):
     smoothed_new = smoothed[n:]
     orig_new = orig[:-n] 
     return orig_new, smoothed_new
+
+def lazy_shift(*, lazy_df:pl.LazyFrame, n:int=1):
+    lazy_df = lazy_df.with_columns(
+        smoothed = pl.col("smoothed").shift(-n)
+    ).drop_nans()
+    return
 
 def join_longframe(*, orig:list, period:int, smoother:str, ticker:str, df_sink:pl.LazyFrame = None) -> None:
     smooth_df = pl.LazyFrame({
@@ -198,8 +208,11 @@ def plot_histogram_overview(*, df_hist:pl.DataFrame, sm1:str, sm2:str, period:in
     plt.close(fig)
 
 
-# get a random sample of tickers
-sample_tickers = get_random_subset(sampling_ratio=0.025)
+# find the eligible tickers
+all_tickers, _ = find_data_all_lazy(track_on=False)
+
+# # get a random sample of tickers
+# sample_tickers = get_random_subset(my_tickers=all_tickers, sampling_ratio=0.025)
 
 # define some inital variables and values
 t_start = time()
@@ -214,28 +227,33 @@ trading_days_included = []
 # clear some transient data
 clear_intermediates()
 
-
-for ticker in track(sample_tickers, description="Smoothing tickers ..."):
+for ticker in track(all_tickers, description="Smoothing tickers ..."):
     # read the data directly into a dataframe
     # orig = pl.read_parquet(ticker).get_column("close")
     
     # use a lazyframe to read the data
     q = (
         pl.scan_parquet(ticker)
-        .select([
-            "close"
-        ])
+        .rename({
+            "stock": "ticker",
+            "close": "data",
+        })
+        .with_columns(
+            smoother = pl.lit("original"),
+            period = pl.lit(0, dtype=pl.Int64),
+        )
+        .select(["ticker", "smoother", "period", "data"])
     )
-    orig = q.collect().get_column("close")
+    # orig = q.collect().get_column("close")
 
-    # check to see if there are enough trading days to do the moving averages
-    # trading_days_all+=1
-    if orig.shape[0] < 500:
-        skipped += 1
-        continue
+    # # check to see if there are enough trading days to do the moving averages
+    # # trading_days_all+=1
+    # if orig.shape[0] < 500:
+    #     skipped += 1
+    #     continue
 
-    # collect the number of trading days included to calculate an average for the summary later
-    trading_days_included.append(orig.shape[0])
+    # # collect the number of trading days included to calculate an average for the summary later
+    # trading_days_included.append(orig.shape[0])
 
     #
     # define the dataframe for the smoothed data
@@ -245,13 +263,13 @@ for ticker in track(sample_tickers, description="Smoothing tickers ..."):
     # df_smooth = join_longframe(orig, 0, "original", ticker.stem)
 
     # the dataframe way
-    df_smooth = join_longframe_inmem(orig=orig, period=0, smoother="original", ticker=ticker.stem)
+    # df_smooth = join_longframe_inmem(orig=orig, period=0, smoother="original", ticker=ticker.stem)
 
     # the dictionary way
     # df_smooth = join_longdict(orig, 0, "original", ticker.stem)
     
 
-    
+    orig = q.select("data").collect()
     for smid, smoother in simple_smoothers.items():
         for period in periods:
 
