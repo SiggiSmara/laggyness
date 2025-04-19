@@ -19,7 +19,9 @@ centrally_smoothed_path = data_path / "stocks_1d_centrally_smoothed"
 centrally_smoothed_path.mkdir(exist_ok=True)
 
 # smoothing windows
-windows = [11, 17, 25]
+windows = [11, ] #17, 25]
+# trend windows
+trend_windows = [5,] # 7, 9]
 
 # get list of all tickers
 tickers = [ x for x in (data_path / "stocks_1d").glob("*.parquet")]

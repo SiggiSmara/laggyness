@@ -27,7 +27,7 @@ trend_windows = [5, 7, 9]
 
 brush = alt.selection_interval(encodings=['x'])
 
-for i in track(range(0,len(all_tickers), 250), description="Plotting result..."):
+for i in track(range(0,len(all_tickers), 1000), description="Plotting result..."):
     check_path = Path(all_tickers[i])
     q = pl.read_parquet(check_path).drop_nulls() #.filter((pl.col("date") > date(year=2020, month=1, day=1)) & (pl.col("date") < date(year=2022, month=1, day=1)) ) #
     
@@ -98,7 +98,7 @@ for i in track(range(0,len(all_tickers), 250), description="Plotting result...")
                 color=alt.Color(
                     f"{label_name}:N", 
                     scale=alt.Scale(
-                        domain=[-1, 0, 1], 
+                        domain=[0, 0.5, 1], 
                         range=['red','blue','green'], 
                         # interpolate=method
                     ),
