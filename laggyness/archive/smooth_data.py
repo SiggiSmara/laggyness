@@ -9,85 +9,141 @@ import matplotlib.pyplot as plt
 import csv
 from typing import List,Tuple
 
-from smoothers.moving_averages import SMA, WMA, EMA, HMA, EHMA, HullWEMA, TEMA #WEMA, 
+
 from common import (
-    clear_intermediates, 
     find_data_all_lazy,
-    simple_smoothers,
-    periods,
     data_path,
-    image_path,
-    result_path,
-    intermediate_path,
+    centrally_smoothed_path,
+    windows,
+    centerSMA,
+    pl_savgol_filter,
 )
-
-
-# Mean absolute scaled error, https://en.wikipedia.org/wiki/Mean_absolute_scaled_error
-def mase(*, orig:pl.Series, smoothed:pl.Series):
-    diff = orig - smoothed
-    mase = (diff.abs() / (orig.diff().abs().mean())).mean()
-    return mase
-
-# remove nulls at the start of the smoothed series
-def align(*, orig:pl.Series, smoothed:pl.Series):
-    smoothed_new = smoothed.drop_nulls()
-    orig_new = orig[len(orig) - len(smoothed_new):]
-    return orig_new, smoothed_new, len(orig) - len(smoothed_new)
-
-# shift the smoothed series n periods into the past
-def shift(*, orig:pl.Series, smoothed:pl.Series, n:int=1):
-    smoothed_new = smoothed[n:]
-    orig_new = orig[:-n] 
-    return orig_new, smoothed_new
-
 
 # find the eligible tickers
 all_tickers, _ = find_data_all_lazy(track_on=False)
+trend_windows = [5, 7, 9]
+def sw_smooth():
+    for ticker in track(all_tickers, description="Smoothing tickers ..."):
+        # use a lazyframe to read the data
+        ticker = Path(ticker)
+        q = (
+            pl.read_parquet(ticker)
+            .rename({
+                "stock": "ticker",
+                "close": "original",
+            })
+            .select(["ticker", "date", "original"])
+        )
+        for window in windows:
+            orig_name = f"savgol_p2_{window}"
+            # diff_name = f"{orig_name}_diff"
+            rdiff_name = f"{orig_name}_rel_diff"
+            # label_name = f"{rdiff_name}_label"
+            # seven_trend_name = f"{rdiff_name}_7_trend"
+            # small_name = f"{rdiff_name}_is_small"
+            # pos_name = f"{rdiff_name}_is_positive"
+            # neg_name = f"{rdiff_name}_is_negative"
+            # posneg_name = f"{rdiff_name}_posneg"
 
-# clear some transient data
-clear_intermediates()
+            
+            q = q.with_columns(
+                pl.col("original").map_batches(lambda x: pl_savgol_filter(data=x, window=window, degree=2)).alias(orig_name)
+            )
+        q.drop_nulls().write_parquet(centrally_smoothed_path / f"{ticker.stem}.parquet")
 
-# define some inital variables and values
-t_start = time()
-# all_tickers = [data_path / "NRSN.parquet", ]
-for ticker in track(all_tickers, description="Smoothing tickers ..."):
-    # use a lazyframe to read the data
-    ticker = Path(ticker)
-    curr_ticker= str(ticker.stem)
-    q = (
-        pl.scan_parquet(ticker)
-        .rename({
-            "stock": "ticker",
-            "close": "original",
-        })
-        .select(["ticker", "original"])
-    )
-
-    orig = q.select("original").collect().get_column("original")
-    # print(f"ticker: {curr_ticker}, length: {len(orig)}")
-    sm_list = [q,]
-    for smid, smoother in simple_smoothers.items():
-        # print(f"smoother: {smid}")
-        # ctick = pl.LazyFrame({
-        #     "ticker": [curr_ticker for _ in range(len(orig))],
-        #     "smoother": [smid for _ in range(len(orig))],
-        # })
-        ctick = pl.LazyFrame()
-        for period in periods:
-            # print(f"period: {period}, length: {len(orig)}")
-            # smooth the data
-            smoothed = smoother(src=orig, period=period)
-
-            # add the smoothed data to the list of lazyframes
-            # sm_list.append(ctick.with_columns(
-            #     period = pl.lit(period, dtype=pl.Int64),
-            #     data = smoothed,
-            # ))
-            sm_list.append( pl.LazyFrame({
-                f"{smid}_{period}": smoothed
-            }))
-
-    
-    pl.concat(sm_list, how="horizontal").collect(streaming=True).write_parquet(data_path.parent / "stocks_1d_smoothed_horizontal" / f"{curr_ticker}.parquet")
+def sw_label():
+    for ticker in track(all_tickers, description="Labeling tickers ..."):
+        ticker = Path(ticker)
+        q = (
+            pl.scan_parquet(centrally_smoothed_path / f"{ticker.stem}.parquet")
+        )
+        for window in windows:
+            orig_name = f"savgol_p2_{window}"
+            diff_name = f"{orig_name}_diff"
+            rdiff_name = f"{orig_name}_rel_diff"
+            # label_name = f"{rdiff_name}_label"
+            # trend9_name = f"{rdiff_name}_9_trend"
+            # trend7_name = f"{rdiff_name}_7_trend"
+            # trend5_name = f"{rdiff_name}_5_trend"
+            # label9_name = f"{rdiff_name}_label9"
+            # label7_name = f"{rdiff_name}_label7"
+            # label5_name = f"{rdiff_name}_label5"
+            # small_name = f"{rdiff_name}_is_small"
+            pos_name = f"{rdiff_name}_is_positive"
+            neg_name = f"{rdiff_name}_is_negative"
+            posneg_name = f"{rdiff_name}_posneg"
         
+            # .with_columns(
+            #     (pl.col(diff_name) / pl.col(orig_name).shift(-1)).alias(rdiff_name), 
+            # )
+            q = q.with_columns(
+                (pl.col(orig_name).diff()).alias(diff_name),
+                (pl.col(orig_name).pct_change()).alias(rdiff_name)
+            ).with_columns(
+                    pl.col(rdiff_name).lt(0).alias(neg_name),
+                    pl.col(rdiff_name).ge(0).alias(pos_name),
+            ).with_columns(
+                pl.when(pl.col(pos_name))
+                    .then(pl.lit(1, dtype=pl.Int32))
+                .when(pl.col(neg_name))
+                    .then(pl.lit(0, dtype=pl.Int32))
+                .otherwise(pl.lit(0, dtype=pl.Int32))
+                .alias(posneg_name)
+            )
+            for tw in trend_windows:
+                trend_name = f"{rdiff_name}_{tw}_trend"
+                label_name = f"{rdiff_name}_label{tw}"
+                index_name = f"{rdiff_name}_labelindex{tw}"
+                q = q.with_columns(
+                    pl.col(posneg_name).rolling_mean(window_size=tw, center=True).alias(trend_name)
+                ).with_columns(
+                    pl.when(pl.col(trend_name) >= 0.8)
+                        .then(pl.lit(1, dtype=pl.Int32))
+                    .when(pl.col(trend_name) <= 0.2)
+                        .then(pl.lit(-1, dtype=pl.Int32))
+                    .otherwise(pl.lit(0, dtype=pl.Int32))
+                    .alias(label_name)
+                ).with_columns(
+                    pl.col(label_name).ne(pl.col(label_name).shift(1, fill_value=2)).cast(pl.Int32).cum_sum().alias(index_name)
+                )
+            # .with_columns(
+            #     pl.col(posneg_name).rolling_mean(window_size=9, center=True).alias(trend9_name),
+            #     pl.col(posneg_name).rolling_mean(window_size=7, center=True).alias(trend7_name),
+            #     pl.col(posneg_name).rolling_mean(window_size=5, center=True).alias(trend5_name),
 
+            # ).with_columns(
+            #     pl.when(pl.col(trend9_name) >= 0.8)
+            #         .then(pl.lit(1, dtype=pl.Int32))
+            #     .when(pl.col(trend9_name) <= 0.2)
+            #         .then(pl.lit(-1, dtype=pl.Int32))
+            #     .otherwise(pl.lit(0, dtype=pl.Int32))
+            #     .alias(label9_name),
+
+            #     pl.when(pl.col(trend7_name) >= 0.8)
+            #         .then(pl.lit(1, dtype=pl.Int32))
+            #     .when(pl.col(trend7_name) <= 0.2)
+            #         .then(pl.lit(-1, dtype=pl.Int32))
+            #     .otherwise(pl.lit(0, dtype=pl.Int32))
+            #     .alias(label7_name),
+
+            #     pl.when(pl.col(trend5_name) >= 0.8)
+            #         .then(pl.lit(1, dtype=pl.Int32))
+            #     .when(pl.col(trend5_name) <= 0.2)
+            #         .then(pl.lit(-1, dtype=pl.Int32))
+            #     .otherwise(pl.lit(0, dtype=pl.Int32))
+            #     .alias(label5_name),
+            # )
+            # .with_columns(
+            #     pl.when(pl.col(seven_trend_name) > 0.8)
+            #         .then(pl.lit("01_uptrend", dtype=pl.Utf8))
+            #     .when(pl.col(seven_trend_name) < 0.2)
+            #         .then(pl.lit("02_downtrend", dtype=pl.Utf8))
+            #     .otherwise(pl.lit("03_unknown", dtype=pl.Utf8))
+            #     .alias(label_name)
+            # )
+            
+        q.collect(streaming=True).write_parquet(centrally_smoothed_path / f"{ticker.stem}.parquet")
+
+if __name__ == "__main__":
+    # sw_smooth()
+    sw_label()
