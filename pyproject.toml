@@ -13,4 +13,8 @@ dependencies = [
     "patsy>=1.0.1",
     "matplotlib>=3.10.0",
     "scipy>=1.15.2",
+    "statsmodels>=0.14.4",
+    "seaborn>=0.13.2",
+    "polars-ds>=0.8.2",
+    "scikit-learn>=1.6.1",
 ]
